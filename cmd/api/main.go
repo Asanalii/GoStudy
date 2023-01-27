@@ -14,6 +14,7 @@ import (
 	// library.
 	_ "github.com/lib/pq"
 	"github.com/shynggys9219/greenlight/internal/data"
+	"github.com/shynggys9219/greenlight/internal/mailer"
 )
 
 const version = "1.0.0"
@@ -30,12 +31,25 @@ type config struct {
 		maxIdleTime  string // the maximum length of time that a connection can be idle
 		// maxLifetime  string //optional here; maximum length of time that a connection can be reused for
 	}
+	limiter struct {
+		enabled bool
+		rps     float64
+		burst   int
+	}
+	smtp struct {
+		host     string
+		port     int
+		username string
+		password string
+		sender   string
+	}
 }
 
 type application struct {
 	config config
 	logger *log.Logger
 	models data.Models // hold new models in app
+	mailer mailer.Mailer
 }
 
 func main() {
@@ -55,11 +69,21 @@ func main() {
 	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "PostgreSQL max idle time")
 	// flag.StringVar(&cfg.db.maxLifetime, "db-max-lifetime", "1h", "PostgreSQL max idle time")
 
+	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
+	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
+	// Read the SMTP server configuration settings into the config struct, using the
+	// Mailtrap settings as the default values. IMPORTANT: If you're following along,
+	// make sure to replace the default values for smtp-username and smtp-password
+	// with your own Mailtrap credentials.
+	flag.StringVar(&cfg.smtp.host, "smtp-host", "smtp.mailtrap.io", "SMTP host")
+	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", "824cd2a55088ce", "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", "cf2d04ce5ead80", "SMTP password")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.alexedwards.net>", "SMTP sender")
+
 	flag.Parse()
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
-
-	fmt.Println(os.Getenv("DSN"))
-	fmt.Println(123)
 
 	db, err := openDB(cfg)
 	if err != nil {
@@ -73,6 +97,7 @@ func main() {
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db), // data.NewModels() function to initialize a Models struct
+		mailer: mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
 	// Use the httprouter instance returned by app.routes() as the server handler.
 	srv := &http.Server{

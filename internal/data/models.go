@@ -10,6 +10,7 @@ import (
 
 var (
 	ErrRecordNotFound = errors.New("record (row, entry) not found")
+	ErrEditConflict   = errors.New("edit conflict")
 )
 
 // Create a Models struct which wraps the MovieModel
@@ -17,6 +18,8 @@ var (
 type Models struct {
 	Movies    MovieModel
 	Directors DirectorModel
+	Users     UserModel
+	Tokens    TokenModel
 }
 
 // method which returns a Models struct containing the initialized MovieModel.
@@ -24,6 +27,8 @@ func NewModels(db *sql.DB) Models {
 	return Models{
 		Movies:    MovieModel{DB: db},
 		Directors: DirectorModel{DB: db},
+		Users:     UserModel{DB: db},
+		Tokens:    TokenModel{DB: db},
 	}
 
 }
